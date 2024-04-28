@@ -1,0 +1,127 @@
+// task a, b, c, e are done
+
+field left: Ref
+field right: Ref
+field parent: Ref
+field id: Int
+field executed: Bool
+
+predicate btt(this: Ref) { // binary tree of tasks
+    (this != null) ==> (
+        acc(this.left) && acc(this.right) && acc(this.id)  && acc(this.parent) && acc(this.executed) &&
+        btt(this.left) && btt(this.right) && btt(this.parent) 
+        && ((this.executed == false) ==> ((this.left != null) ==> unfolding btt(this.left) in this.left.executed == false))
+        && ((this.executed == false) ==> ((this.right != null) ==> unfolding btt(this.right) in this.right.executed == false))
+    ) 
+}
+
+// NO_TASK means that the node == null 
+
+function empty(Q: Seq[Ref]) : Bool
+    ensures (|Q| > 0) ==> result == false
+    ensures (|Q| == 0) ==> result == true
+{
+    |Q| > 0 ? false : true
+}
+
+method push_bottom(Q: Seq[Ref], T: Ref) returns (Q_new: Seq[Ref])
+    ensures Q_new == (Q ++ Seq(T))
+    ensures Q_new[|Q_new|-1] == T
+
+
+method test(t: Ref)
+    requires btt(t)
+    requires t != null
+{
+    var q: Seq[Ref] := Seq()
+    
+    q := push_bottom(q, t)
+
+    assert |q| == 1
+
+    var elem: Ref
+
+    elem, q := pop_bottom(q)
+    assert elem == t
+    assert |q| == 0
+}
+
+method pop_bottom(Q: Seq[Ref]) returns (elem: Ref, Q_new: Seq[Ref])
+    requires |Q| > 0
+    ensures elem == Q[|Q|-1]
+    ensures Q_new == Q[..(|Q|-1)]
+    ensures btt(elem)
+    ensures elem != null
+
+
+
+method acquire(i: Int) 
+method communicate(i: Int)
+
+define ROOT_TASK (0)
+define NO_TASK (-1)
+
+method add_task(i: Int, t: Ref, q: Seq[Ref]) returns (Q_new: Seq[Ref])
+    requires btt(t)
+    ensures btt(t)
+    ensures (t != null) ==> (Q_new == q ++ Seq(t))
+    ensures (t == null) ==> (Q_new == q)
+{
+    if (t != null){
+        unfold btt(t)
+        Q_new := push_bottom(q, t)
+        fold btt(t)
+    }
+    else {
+        Q_new := q
+    }
+}
+
+
+method execute(i: Int, t: Ref, q: Seq[Ref])
+    returns (Q_new: Seq[Ref])
+    requires btt(t)
+    requires t != null
+    ensures btt(t)
+{
+    unfold btt(t)
+    t.executed := true
+
+    Q_new := add_task(i, t.left, q)
+    Q_new := add_task(i, t.right, Q_new)
+
+    fold btt(t)
+}
+
+    
+method main(i: Int, root_task: Ref, q: Seq[Ref]) returns (Q_new: Seq[Ref])
+    requires i == 0
+    requires btt(root_task)
+    requires root_task != null
+    requires unfolding btt(root_task) in root_task.id == ROOT_TASK
+    requires unfolding btt(root_task) in root_task.executed == false
+    requires q == Seq()
+{
+    var new_q: Seq[Ref] := Seq()
+    if (i == 0)
+    {
+        new_q := push_bottom(q, root_task)
+        assert new_q[|new_q|-1] == root_task
+    }
+    while (true)
+    {
+        if (empty(new_q))
+        {
+            acquire(i)
+        }
+        else
+        {
+            var t: Ref
+            t, new_q := pop_bottom(new_q)
+            communicate(i)
+            new_q := execute(i, t, new_q)
+        }
+    }
+    Q_new := new_q
+}
+

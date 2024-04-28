@@ -1,0 +1,65 @@
+// tasks a, b are done
+
+import <decreases/int.vpr>
+
+field left: Ref
+field right: Ref
+field weight: Int
+field value: Seq[Int]
+field ghost_content: Seq[Int]
+
+
+predicate bt(this: Ref) {
+    this == null
+    ? true
+    :
+        acc(this.left) && acc(this.right) && acc(this.weight) && acc(this.value) && acc(this.ghost_content) &&
+        bt(this.right) && 
+        bt(this.left) && this.weight >= 0     
+}
+
+define optHeight(t) (
+    t == null ? 0 : 1 + depth(t)
+)
+
+define max_math(a,b) (
+    (a > b ? a : b)
+)
+
+function depth(this: Ref): Int
+    requires this != null ==> bt(this)
+    ensures result >= 0
+{
+    this == null ? 0 : 
+    (unfolding bt(this) in max_math(optHeight(this.left), optHeight(this.right)))
+}
+
+function get_weight(x:Ref) : Int
+    requires bt(x)
+{ 
+    (x!=null) ? unfolding bt(x) in x.weight : 0
+}
+
+method toStr(x: Ref) returns (z: Seq[Int])
+    requires bt(x)
+    requires (x!=null) ==> unfolding bt(x) in x.weight >= 0
+    ensures bt(x)
+    decreases depth(x)
+{
+    z:= Seq()
+    if (x == null) {
+        z:= Seq()
+    }
+    else{
+        unfold bt(x)
+        if  (x.left == null && x.right == null) {
+            z := x.value
+        }
+        else{
+            var y1 : Seq[Int] := toStr(x.left);
+            var y2 : Seq[Int] := toStr(x.right);
+            z := y1 ++ y2
+        }
+        fold bt(x)
+    }
+}
